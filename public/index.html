@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Stock Compare</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+  
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+	<script src="http://formvalidation.io/vendor/formvalidation/js/formValidation.min.js"></script>
+	<script src="http://formvalidation.io/vendor/formvalidation/js/framework/bootstrap.min.js"></script>
+	<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"/></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/moment.min.js"></script>   
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.37/js/bootstrap-datetimepicker.min.js"></script>
+	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.17.37/css/bootstrap-datetimepicker.min.css" />
+<style>
+label {
+	padding-left:0px!important;
+}
+</style>
+
+<script>
+	$(document).ready(function() {
+		// The maximum number of options
+		var MAX_OPTIONS = 5;
+		
+		function fillGallery(files) {
+			$("#galleryContaier").empty();
+		  files.forEach(function(file){
+			$("#galleryContaier").append( '<div class="well" style="margin-top: 20px"><h2>'+file+'</h2><p>Hotlink: <a href="uploads/'+file+'">'+window.location.origin+'uploads/'+file+'<br/><img src="uploads/'+file+'"/></a></p></div>' )
+		  })
+		};
+		
+		$(function () {
+			$('#datetimepickerstart').datetimepicker({
+					format: 'YYYY/MM/DD'});
+			$('#datetimepickerend').datetimepicker({
+					format: 'YYYY/MM/DD'});
+		});
+								
+		function navBarHandler() {
+		  $(".section").hide();
+		  $('#alertSucc').hide();
+		  $('#alertFail').hide();
+		  $("#mainNavbar li").removeClass("active");
+		  $(this).addClass("active");
+		  var sectionName = $(this).attr("section");
+		  $("#"+sectionName).show();
+		};
+		
+		$("#mainNavbar li").click(navBarHandler);
+		
+		$("#mainNavbar .active").trigger( "click" );
+		
+		$("#reloadButton").click(function(){
+			var url = "/getImages";
+			$.ajax
+			({
+				type: "GET",
+				url: url,
+				dataType: 'json',
+				async: false,
+				success: function (result){
+					fillGallery(result.files);
+				}
+			});
+		});
+		
+		$('#surveyForm')
+			.formValidation({
+				framework: 'bootstrap',
+				icon: {
+					//valid: 'glyphicon glyphicon-ok',
+					//invalid: 'glyphicon glyphicon-remove',
+					//validating: 'glyphicon glyphicon-refresh'
+				},
+				fields: {
+					processName: {
+						validators: {
+							notEmpty: {
+								message: 'The field required and cannot be empty'
+							}
+						}
+					},
+					'option[]': {
+						validators: {
+							notEmpty: {
+								message: 'The option required and cannot be empty'
+							},
+							stringLength: {
+								max: 100,
+								message: 'The option must be less than 100 characters long'
+							}
+						}
+					}
+				}
+			})
+			.on('status.field.fv', function(e, data) {
+				// The e and data parameters are the same
+				// as one in the init.field.fv event above
+
+				// data.status --> New field status
+
+				// Do something ...
+				if(data.status == "VALID" || data.status == "INVALID"){
+					var status = $("#surveyForm").data('formValidation').validate().isValid();
+					if(status){
+						$("#submitButton").removeAttr("disabled");
+					}else{
+						$("#submitButton").attr("disabled","disabled");
+					}
+				}
+				
+			})
+
+			// Add button click handler
+			.on('click', '.addButton', function() {
+				var $template = $('#optionTemplate'),
+					$clone    = $template
+									.clone()
+									.removeClass('hide')
+									.removeAttr('id')
+									.insertBefore($template),
+					$option   = $clone.find('[name="option[]"]');
+
+				// Add new field
+				$('#surveyForm').formValidation('addField', $option);
+			})
+
+			// Remove button click handler
+			.on('click', '.removeButton', function() {
+				var $row    = $(this).parents('.form-group'),
+					$option = $row.find('[name="option[]"]');
+
+				// Remove element containing the option
+				$row.remove();
+
+				// Remove field
+				$('#surveyForm').formValidation('removeField', $option);
+			})
+
+			// Called after adding new field
+			.on('added.field.fv', function(e, data) {
+				// data.field   --> The field name
+				// data.element --> The new field element
+				// data.options --> The new field options
+				if (data.field === 'option[]') {
+					if ($('#surveyForm').find(':visible[name="option[]"]').length >= MAX_OPTIONS) {
+						$('#surveyForm').find('.addButton').attr('disabled', 'disabled');
+					}
+				}
+			})
+
+			// Called after removing the field
+			.on('removed.field.fv', function(e, data) {
+			   if (data.field === 'option[]') {
+					if ($('#surveyForm').find(':visible[name="option[]"]').length < MAX_OPTIONS) {
+						$('#surveyForm').find('.addButton').removeAttr('disabled');
+					}
+				}
+			})
+				
+			.on('click', '.submitButton', function(e) {
+				$('#alertSucc').hide();
+				$('#alertFail').hide();
+				var imgName = $("#processName").val(); 
+				var dateStart = $("#startTime").val(); 
+				var dateEnd = $("#endTime").val();
+				if (dateEnd == "") dateEnd = "now";
+				//var stock1 = $("#stock1").val();
+				var array = $('input[name="option[]"]');
+				var arrayValStocks=[];
+				//arrayValStocks.push(stock1);
+				for (var entry in array) {
+					if(array[entry].value){
+						arrayValStocks.push(array[entry].value);
+					}
+				};
+
+				e.preventDefault();
+				$('#submitButton').hide();
+				$('#iconLoading').show();
+				$.ajax({
+					url : "/createProcess",
+					method: "POST",
+					dataType: "json",
+					data: {"imageName" : imgName,"startDate":dateStart, "endDate":dateEnd, "quotes" : JSON.stringify(arrayValStocks)},
+					success: function(){
+						$('#alertSucc').show();
+						$('#iconLoading').hide();
+						$('#submitButton').show();
+					},
+					error: function(){
+						alert('error');
+						$('#alertFail').show();
+						$('#iconLoading').hide();
+						$('#submitButton').show();
+					}
+				});
+
+				return false;
+			});
+			
+			$("#surveyForm").data('formValidation').validate();
+				
+	});
+	
+</script>
+ </head>
+<body>
+	<nav id="mainNavbar" class="navbar navbar-default">
+		<div class="container-fluid">
+			<!-- Brand and toggle get grouped for better mobile display -->
+			<div class="navbar-header">
+				<a class="navbar-brand">Stock Compare</a>
+			</div>
+
+			<!-- Collect the nav links, forms, and other content for toggling -->
+			<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+				<ul class="nav navbar-nav">
+					<li id="createLink" section="createSection" class="active"><a href="#">Create comparison<span class="sr-only">(current)</span></a></li>
+					<li id="galleryLink" section="gallerySection"><a href="#">Gallery</a></li>
+				</ul>
+			</div><!-- /.navbar-collapse -->
+		</div><!-- /.container-fluid -->
+	</nav>
+	
+	<div class="container">
+		<div class="starter-template">
+			<div id="createSection" class="section">
+				<h1><img class = "newappIcon" src="images/graph-1.png" style="width:20%">Create comparison</h1>
+				<p class="lead">Create an always-fresh stock comparison chart.</p>
+				<p>Powered by IBM openWhisk and IBM Workload Scheduler!</p>
+				
+				<form role="form" id="surveyForm" method="post" >
+					<div class="form-group">
+						<div class="col-xs-9" style="margin-top:10px">
+						  <label for="text">Stock 1:</label>
+						  <input type="text" class="form-control" id="stock1" name="option[]" placeholder="Enter stock 1">
+						</div>
+					</div>
+					<div class="form-group">
+						<div class="col-xs-9" style="margin-top:10px">
+							<label for="text">Stock 2:</label>
+							<div class="input-group">
+								<input type="text" class="form-control" id="stock2" placeholder="Enter stock 2" name="option[]">
+								<span class="input-group-btn">
+									<button class="btn btn-default addButton" type="button">+</button>
+								</span>
+							</div>
+						</div>
+					</div>
+			
+					<!-- The option field template containing an option field and a Remove button -->
+					<div class="form-group hide" id="optionTemplate">
+						<div class="col-xs-9" style="margin-top:10px">
+							<div class="input-group">
+								<input type="text" class="form-control" placeholder="Enter stock " name="option[]">
+								<span class="input-group-btn">
+									<button class="btn btn-default removeButton" type="button">-</button>
+								</span>
+							</div>
+						</div>
+					</div>
+		
+					<div class="form-group">
+						<div class="col-xs-9" style="margin-top:10px">
+							<label for="text">Process name:</label>
+							<input type="text" class="form-control" id="processName" name="processName" placeholder="Process name">
+						</div>
+					</div>
+					
+					<div class="form-group">
+						<div class='col-xs-9' style="margin-top:10px">	
+							<label for="text">Start Time:</label>
+							<div class='input-group date' id='datetimepickerstart'>
+								<input type='text' class="form-control" id="startTime"/>
+								<span class="input-group-addon">
+									<span class="glyphicon glyphicon-calendar"></span>
+								</span>
+							</div>
+						</div>
+					
+						<div class='col-xs-9' style="margin-top:10px">
+							<label for="text">End Time:</label>
+							<div class='input-group date' id='datetimepickerend'>
+								<input type='text' class="form-control" id="endTime"/>
+								<span class="input-group-addon">
+									<span class="glyphicon glyphicon-calendar"></span>
+								</span>
+							</div>
+						</div>
+					</div>
+					
+					<div class="col-xs-9" style="margin-top:30px">
+						<button id="submitButton" type="button" class="btn btn-default submitButton">Submit</button>
+						<img src="images/icon_loading.gif" id="iconLoading" style="display:none; width:10%;"/ >
+					</div>
+				</form>
+			</div>
+			<div id="gallerySection" class="section">
+				<h1><img class = "newappIcon" src="images/graph-1.png" style="width:20%">Gallery</h1>
+				<p class="lead">Create an always-fresh stock comparison chart.</p>
+				<p>Powered by IBM openWhisk and IBM Workload Scheduler!</p>
+				<button id="reloadButton" class="btn btn-default">Reload</button>
+				<div id="galleryContaier"></div>
+			</div>
+		</div>
+		<div class="col-xs-8" style="margin:30px">
+			<div class="alert alert-success" id="alertSucc" role="alert" style="display:none;">Well done! You successfully create the process!</div>
+		</div>
+		<div class="col-xs-8" style="margin:30px">
+			<div class="alert alert-danger" id="alertFail" role="alert" style="display:none;">Oh snap! Change a few things up and try submitting again.</div>
+		</div>
+    </div>
+</body>
+</html>
